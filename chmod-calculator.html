@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chmod Calculator</title>
+    <script>
+        function updateString(index, value) {
+            const sElem = document.getElementById("s");
+            const s = sElem.value;
+            sElem.value = s.substring(0, index) + value + s.substring(index + 1);
+        }
+
+        function calculate(reset = false) {
+            if (reset) {
+                document.getElementById("s").value = '----------';
+            }
+
+            const permissions = [
+                { id: "ow", startIndex: 1 },
+                { id: "gr", startIndex: 4 },
+                { id: "ot", startIndex: 7 }
+            ];
+
+            permissions.forEach(({ id, startIndex }) => {
+                let value = 0;
+
+                if (document.getElementById(`${id}re`).checked) {
+                    value += 4;
+                    updateString(startIndex, 'r');
+                }
+                if (document.getElementById(`${id}wr`).checked) {
+                    value += 2;
+                    updateString(startIndex + 1, 'w');
+                }
+                if (document.getElementById(`${id}ex`).checked) {
+                    value += 1;
+                    updateString(startIndex + 2, 'x');
+                }
+
+                document.getElementById(id).value = value;
+            });
+        }
+
+        function calculateFromInput() {
+            document.getElementById("s").value = '----------';
+
+            const permissions = [
+                { id: "ow", startIndex: 1 },
+                { id: "gr", startIndex: 4 },
+                { id: "ot", startIndex: 7 }
+            ];
+
+            permissions.forEach(({ id, startIndex }) => {
+                const value = parseInt(document.getElementById(id).value, 10);
+
+                document.getElementById(`${id}re`).checked = [4, 5, 6, 7].includes(value);
+                updateString(startIndex, document.getElementById(`${id}re`).checked ? 'r' : '-');
+
+                document.getElementById(`${id}wr`).checked = [2, 3, 6, 7].includes(value);
+                updateString(startIndex + 1, document.getElementById(`${id}wr`).checked ? 'w' : '-');
+
+                document.getElementById(`${id}ex`).checked = [1, 3, 5, 7].includes(value);
+                updateString(startIndex + 2, document.getElementById(`${id}ex`).checked ? 'x' : '-');
+            });
+        }
+
+        function calculateFromString() {
+            const str = document.getElementById("s").value;
+
+            const permissions = [
+                { id: "ow", startIndex: 1 },
+                { id: "gr", startIndex: 4 },
+                { id: "ot", startIndex: 7 }
+            ];
+
+            permissions.forEach(({ id, startIndex }) => {
+                document.getElementById(`${id}re`).checked = str.charAt(startIndex) === 'r';
+                document.getElementById(`${id}wr`).checked = str.charAt(startIndex + 1) === 'w';
+                document.getElementById(`${id}ex`).checked = str.charAt(startIndex + 2) === 'x';
+            });
+
+            calculate(false);
+        }
+    </script>
+</head>
+<body>
+    <table bgcolor="#000000" cellpadding="5" cellspacing="1">
+        <tr bgcolor="#ffffff" align="center">
+            <th colspan="4">Chmod Calculator</th>
+        </tr>
+        <tr bgcolor="#ffffff" align="center">
+            <td>Permission</td>
+            <td>Owner</td>
+            <td>Group</td>
+            <td>Other</td>
+        </tr>
+        <tr bgcolor="#ffffff" align="center">
+            <td>Read (4)</td>
+            <td><input type="checkbox" id="owre" onclick="calculate();"></td>
+            <td><input type="checkbox" id="grre" onclick="calculate();"></td>
+            <td><input type="checkbox" id="otre" onclick="calculate();"></td>
+        </tr>
+        <tr bgcolor="#ffffff" align="center">
+            <td>Write (2)</td>
+            <td><input type="checkbox" id="owwr" onclick="calculate();"></td>
+            <td><input type="checkbox" id="grwr" onclick="calculate();"></td>
+            <td><input type="checkbox" id="otwr" onclick="calculate();"></td>
+        </tr>
+        <tr bgcolor="#ffffff" align="center">
+            <td>Execute (1)</td>
+            <td><input type="checkbox" id="owex" onclick="calculate();"></td>
+            <td><input type="checkbox" id="grex" onclick="calculate();"></td>
+            <td><input type="checkbox" id="otex" onclick="calculate();"></td>
+        </tr>
+        <tr bgcolor="#ffffff" align="center">
+            <td>Value</td>
+            <td><input type="text" id="ow" size="1" value="0" onkeyup="calculateFromInput();"></td>
+            <td><input type="text" id="gr" size="1" value="0" onkeyup="calculateFromInput();"></td>
+            <td><input type="text" id="ot" size="1" value="0" onkeyup="calculateFromInput();"></td>
+        </tr>
+    </table>
+    <br>
+    <input type="text" style="border:1px #000000 solid" id="s" value="----------" onkeyup="calculateFromString();">
+    <p>chmod -R 750 /tmp/somedir</p>
+</body>
+</html>
