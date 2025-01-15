@@ -3,124 +3,263 @@
 <head>
     <meta charset="UTF-8">
     <title>Chmod Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .error {
+            color: red;
+        }
+        #example {
+            font-style: italic;
+            margin-top: 10px;
+        }
+        #s {
+            text-align: left;
+        }
+        table {
+            border-collapse: collapse;
+            table-layout: auto;
+            width: fit-content;
+        }
+        th {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: center;
+        }
+        td {
+            border: 1px solid black;
+            padding: 5px;
+        }
+        td:first-child {
+            text-align: center;
+        }
+        fieldset {
+            width: fit-content;
+            border: 1px solid #000;
+            padding: 10px;
+        }
+        legend {
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 50px;
+            text-align: center;
+        }
+    </style>
     <script>
-        function updateString(index, value) {
-            const sElem = document.getElementById("s");
-            const s = sElem.value;
-            sElem.value = s.substring(0, index) + value + s.substring(index + 1);
+        function updateTextRepresentation() {
+            const fileType = document.querySelector('input[name="fileType"]:checked').value;
+            const special = parseInt(document.getElementById("special").value) || 0;
+            const owner = parseInt(document.getElementById("owner").value) || 0;
+            const group = parseInt(document.getElementById("group").value) || 0;
+            const other = parseInt(document.getElementById("other").value) || 0;
+
+            const permissionString = [
+                fileType,
+                calculatePermissions(owner, special & 4),
+                calculatePermissions(group, special & 2),
+                calculatePermissions(other, special & 1, true)
+            ].join("");
+
+            document.getElementById("s").value = permissionString;
+            updateExample(special, owner, group, other);
         }
 
-        function calculate(reset = false) {
-            if (reset) {
-                document.getElementById("s").value = '----------';
+        function calculatePermissions(value, specialBit, isOthers = false) {
+            const read = value & 4 ? "r" : "-";
+            const write = value & 2 ? "w" : "-";
+            let execute = value & 1 ? "x" : "-";
+
+            if (specialBit) {
+                if (isOthers) {
+                    execute = execute === "x" ? "t" : "T";
+                } else {
+                    execute = execute === "x" ? "s" : "S";
+                }
             }
 
-            const permissions = [
-                { id: "ow", startIndex: 1 },
-                { id: "gr", startIndex: 4 },
-                { id: "ot", startIndex: 7 }
-            ];
-
-            permissions.forEach(({ id, startIndex }) => {
-                let value = 0;
-
-                if (document.getElementById(`${id}re`).checked) {
-                    value += 4;
-                    updateString(startIndex, 'r');
-                }
-                if (document.getElementById(`${id}wr`).checked) {
-                    value += 2;
-                    updateString(startIndex + 1, 'w');
-                }
-                if (document.getElementById(`${id}ex`).checked) {
-                    value += 1;
-                    updateString(startIndex + 2, 'x');
-                }
-
-                document.getElementById(id).value = value;
-            });
+            return read + write + execute;
         }
 
-        function calculateFromInput() {
-            document.getElementById("s").value = '----------';
+        function updateFromText() {
+            const text = document.getElementById("s").value;
+            const fileType = text.charAt(0);
+            const errorElem = document.getElementById("error-message");
 
-            const permissions = [
-                { id: "ow", startIndex: 1 },
-                { id: "gr", startIndex: 4 },
-                { id: "ot", startIndex: 7 }
-            ];
+            if (text.length !== 10) {
+                errorElem.textContent = "Error: Permission text must be exactly 10 characters long.";
+                return;
+            }
 
-            permissions.forEach(({ id, startIndex }) => {
-                const value = parseInt(document.getElementById(id).value, 10);
+            if (!/^[\-dpcsblrwxstT]{10}$/.test(text)) {
+                errorElem.textContent = "Error: Invalid characters in permission text.";
+                return;
+            }
 
-                document.getElementById(`${id}re`).checked = [4, 5, 6, 7].includes(value);
-                updateString(startIndex, document.getElementById(`${id}re`).checked ? 'r' : '-');
+            errorElem.textContent = "";
+            document.querySelector(`input[value="${fileType}"]`).checked = true;
 
-                document.getElementById(`${id}wr`).checked = [2, 3, 6, 7].includes(value);
-                updateString(startIndex + 1, document.getElementById(`${id}wr`).checked ? 'w' : '-');
+            const parsePermissions = (segment, specialBit) => {
+                const read = segment.charAt(0) === "r" ? 4 : 0;
+                const write = segment.charAt(1) === "w" ? 2 : 0;
+                const execute =
+                    segment.charAt(2) === "x" || segment.charAt(2) === "s" || segment.charAt(2) === "t"
+                        ? 1
+                        : 0;
 
-                document.getElementById(`${id}ex`).checked = [1, 3, 5, 7].includes(value);
-                updateString(startIndex + 2, document.getElementById(`${id}ex`).checked ? 'x' : '-');
-            });
+                const special =
+                    segment.charAt(2) === "s" || segment.charAt(2) === "S" || segment.charAt(2) === "t" || segment.charAt(2) === "T"
+                        ? specialBit
+                        : 0;
+
+                return { value: read + write + execute, special };
+            };
+
+            const owner = parsePermissions(text.substring(1, 4), 4);
+            const group = parsePermissions(text.substring(4, 7), 2);
+            const other = parsePermissions(text.substring(7, 10), 1);
+
+            document.getElementById("owner").value = owner.value;
+            document.getElementById("group").value = group.value;
+            document.getElementById("other").value = other.value;
+            document.getElementById("special").value =
+                owner.special + group.special + other.special;
+
+            updateCheckboxes();
+            updateExample(
+                parseInt(document.getElementById("special").value) || 0,
+                owner.value,
+                group.value,
+                other.value
+            );
         }
 
-        function calculateFromString() {
-            const str = document.getElementById("s").value;
+        function updateCheckboxes() {
+            const special = parseInt(document.getElementById("special").value) || 0;
+            const owner = parseInt(document.getElementById("owner").value) || 0;
+            const group = parseInt(document.getElementById("group").value) || 0;
+            const other = parseInt(document.getElementById("other").value) || 0;
 
-            const permissions = [
-                { id: "ow", startIndex: 1 },
-                { id: "gr", startIndex: 4 },
-                { id: "ot", startIndex: 7 }
-            ];
+            document.getElementById("suid").checked = (special & 4) === 4;
+            document.getElementById("sgid").checked = (special & 2) === 2;
+            document.getElementById("sticky").checked = (special & 1) === 1;
 
-            permissions.forEach(({ id, startIndex }) => {
-                document.getElementById(`${id}re`).checked = str.charAt(startIndex) === 'r';
-                document.getElementById(`${id}wr`).checked = str.charAt(startIndex + 1) === 'w';
-                document.getElementById(`${id}ex`).checked = str.charAt(startIndex + 2) === 'x';
-            });
+            setPermissionCheckboxes("owner", owner);
+            setPermissionCheckboxes("group", group);
+            setPermissionCheckboxes("other", other);
 
-            calculate(false);
+            updateTextRepresentation(); // Sync permission text
+        }
+
+        function setPermissionCheckboxes(prefix, value) {
+            document.getElementById(`${prefix}Read`).checked = (value & 4) === 4;
+            document.getElementById(`${prefix}Write`).checked = (value & 2) === 2;
+            document.getElementById(`${prefix}Execute`).checked = (value & 1) === 1;
+        }
+
+        function updateFromCheckboxes() {
+            const special =
+                (document.getElementById("suid").checked ? 4 : 0) +
+                (document.getElementById("sgid").checked ? 2 : 0) +
+                (document.getElementById("sticky").checked ? 1 : 0);
+
+            const owner =
+                (document.getElementById("ownerRead").checked ? 4 : 0) +
+                (document.getElementById("ownerWrite").checked ? 2 : 0) +
+                (document.getElementById("ownerExecute").checked ? 1 : 0);
+
+            const group =
+                (document.getElementById("groupRead").checked ? 4 : 0) +
+                (document.getElementById("groupWrite").checked ? 2 : 0) +
+                (document.getElementById("groupExecute").checked ? 1 : 0);
+
+            const other =
+                (document.getElementById("otherRead").checked ? 4 : 0) +
+                (document.getElementById("otherWrite").checked ? 2 : 0) +
+                (document.getElementById("otherExecute").checked ? 1 : 0);
+
+            document.getElementById("special").value = special;
+            document.getElementById("owner").value = owner;
+            document.getElementById("group").value = group;
+            document.getElementById("other").value = other;
+
+            updateTextRepresentation();
+        }
+
+        function updateExample(special, owner, group, other) {
+            const fileType = document.querySelector('input[name="fileType"]:checked').value;
+            const chmodValue = `${special}${owner}${group}${other}`;
+            const examplePath = {
+                "-": "/tmp/file",
+                "d": "/tmp/dir",
+                "l": "/tmp/link",
+                "p": "/tmp/pipe",
+                "s": "/tmp/socket",
+                "b": "/tmp/blockdevice",
+                "c": "/tmp/chardevice",
+                "e": "/tmp/extlink"
+            }[fileType];
+
+            const recursiveFlag = fileType === "d" ? "-R " : "";
+            document.getElementById("example").textContent = `Example: chmod ${recursiveFlag}${chmodValue} ${examplePath}`;
         }
     </script>
 </head>
 <body>
-    <table bgcolor="#000000" cellpadding="5" cellspacing="1">
-        <tr bgcolor="#ffffff" align="center">
-            <th colspan="4">Chmod Calculator</th>
+    <h1>Chmod Calculator</h1>
+    <fieldset>
+        <legend>File Type</legend>
+        <label><input type="radio" name="fileType" value="-" onclick="updateTextRepresentation();" checked> Regular File (-)</label><br>
+        <label><input type="radio" name="fileType" value="d" onclick="updateTextRepresentation();"> Directory (d)</label><br>
+        <label><input type="radio" name="fileType" value="l" onclick="updateTextRepresentation();"> Symbolic Link (l)</label><br>
+        <label><input type="radio" name="fileType" value="p" onclick="updateTextRepresentation();"> Named Pipe (p)</label><br>
+        <label><input type="radio" name="fileType" value="s" onclick="updateTextRepresentation();"> Socket (s)</label><br>
+        <label><input type="radio" name="fileType" value="b" onclick="updateTextRepresentation();"> Block Device (b)</label><br>
+        <label><input type="radio" name="fileType" value="c" onclick="updateTextRepresentation();"> Character Device (c)</label><br>
+        <label><input type="radio" name="fileType" value="e" onclick="updateTextRepresentation();"> External Link (e)</label>
+    </fieldset>
+    <br>
+    <table>
+        <tr>
+            <th>Bit</th>
+            <th>Special</th>
+            <th>Owner</th>
+            <th>Group</th>
+            <th>Other</th>
         </tr>
-        <tr bgcolor="#ffffff" align="center">
-            <td>Permission</td>
-            <td>Owner</td>
-            <td>Group</td>
-            <td>Other</td>
+        <tr>
+            <td>4</td>
+            <td><input type="checkbox" id="suid" onclick="updateFromCheckboxes();"> SUID</td>
+            <td><input type="checkbox" id="ownerRead" onclick="updateFromCheckboxes();"> Read</td>
+            <td><input type="checkbox" id="groupRead" onclick="updateFromCheckboxes();"> Read</td>
+            <td><input type="checkbox" id="otherRead" onclick="updateFromCheckboxes();"> Read</td>
         </tr>
-        <tr bgcolor="#ffffff" align="center">
-            <td>Read (4)</td>
-            <td><input type="checkbox" id="owre" onclick="calculate();"></td>
-            <td><input type="checkbox" id="grre" onclick="calculate();"></td>
-            <td><input type="checkbox" id="otre" onclick="calculate();"></td>
+        <tr>
+            <td>2</td>
+            <td><input type="checkbox" id="sgid" onclick="updateFromCheckboxes();"> SGID</td>
+            <td><input type="checkbox" id="ownerWrite" onclick="updateFromCheckboxes();"> Write</td>
+            <td><input type="checkbox" id="groupWrite" onclick="updateFromCheckboxes();"> Write</td>
+            <td><input type="checkbox" id="otherWrite" onclick="updateFromCheckboxes();"> Write</td>
         </tr>
-        <tr bgcolor="#ffffff" align="center">
-            <td>Write (2)</td>
-            <td><input type="checkbox" id="owwr" onclick="calculate();"></td>
-            <td><input type="checkbox" id="grwr" onclick="calculate();"></td>
-            <td><input type="checkbox" id="otwr" onclick="calculate();"></td>
+        <tr>
+            <td>1</td>
+            <td><input type="checkbox" id="sticky" onclick="updateFromCheckboxes();"> Sticky</td>
+            <td><input type="checkbox" id="ownerExecute" onclick="updateFromCheckboxes();"> Execute</td>
+            <td><input type="checkbox" id="groupExecute" onclick="updateFromCheckboxes();"> Execute</td>
+            <td><input type="checkbox" id="otherExecute" onclick="updateFromCheckboxes();"> Execute</td>
         </tr>
-        <tr bgcolor="#ffffff" align="center">
-            <td>Execute (1)</td>
-            <td><input type="checkbox" id="owex" onclick="calculate();"></td>
-            <td><input type="checkbox" id="grex" onclick="calculate();"></td>
-            <td><input type="checkbox" id="otex" onclick="calculate();"></td>
-        </tr>
-        <tr bgcolor="#ffffff" align="center">
+        <tr>
             <td>Value</td>
-            <td><input type="text" id="ow" size="1" value="0" onkeyup="calculateFromInput();"></td>
-            <td><input type="text" id="gr" size="1" value="0" onkeyup="calculateFromInput();"></td>
-            <td><input type="text" id="ot" size="1" value="0" onkeyup="calculateFromInput();"></td>
+            <td><input type="text" id="special" value="0" onkeyup="updateCheckboxes();"></td>
+            <td><input type="text" id="owner" value="0" onkeyup="updateCheckboxes();"></td>
+            <td><input type="text" id="group" value="0" onkeyup="updateCheckboxes();"></td>
+            <td><input type="text" id="other" value="0" onkeyup="updateCheckboxes();"></td>
         </tr>
     </table>
     <br>
-    <input type="text" style="border:1px #000000 solid" id="s" value="----------" onkeyup="calculateFromString();">
-    <p>chmod -R 750 /tmp/somedir</p>
+    <label>Permissions: <input type="text" id="s" value="----------" onkeyup="updateFromText();" style="width: 200px;"></label>
+    <span class="error" id="error-message"></span>
+    <p id="example"></p>
 </body>
 </html>
